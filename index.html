@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>我的大西北深度游地图</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif; }
+        #map { height: 100vh; width: 100%; background: #f0f0f0; }
+
+        /* --- 1. 地图标签样式 (白底卡片风) --- */
+        .map-label {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid #ccc !important;
+            border-radius: 4px;
+            box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+            font-size: 13px;
+            font-weight: bold;
+            color: #333 !important;
+            padding: 3px 8px;
+            white-space: nowrap;
+            pointer-events: auto; 
+            cursor: pointer;
+        }
+
+        /* --- 2. 弹窗基础样式 --- */
+        .leaflet-popup-content-wrapper { 
+            border-radius: 10px; 
+            padding: 0; 
+            overflow: hidden; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        }
+        .leaflet-popup-content { margin: 0 !important; width: 360px !important; }
+        
+        .popup-header {
+            background: linear-gradient(135deg, #0062cc, #0096ff);
+            color: white;
+            padding: 15px;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .popup-body { 
+            padding: 15px; 
+            max-height: 60vh; /* 稍微增加高度 */
+            overflow-y: auto; 
+            background: #fff;
+        }
+
+        /* --- 3. 内容区域样式 --- */
+        .my-notes-box {
+            background-color: #fffbf0;
+            border: 1px solid #ffeeba;
+            border-left: 5px solid #ffc107;
+            padding: 12px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        .section-title { font-size: 12px; color: #999; font-weight: 800; margin-bottom: 6px; display: block; letter-spacing: 1px; }
+        .my-notes-list { margin: 0; padding-left: 18px; font-size: 15px; color: #d35400; font-weight: 600; line-height: 1.6; }
+        
+        .desc-box { font-size: 14px; color: #444; line-height: 1.8; margin-bottom: 15px; text-align: justify; }
+        .desc-box strong { color: #2c3e50; }
+        
+        .tag-container { margin-bottom: 10px; }
+        .tag { 
+            display: inline-block; 
+            background: #eef2f7; 
+            color: #5a6e8c; 
+            padding: 3px 8px; 
+            border-radius: 12px; 
+            font-size: 12px; 
+            margin-right: 6px; 
+            margin-bottom: 5px;
+        }
+
+        /* --- 4. 相册样式 --- */
+        .photo-section { border-top: 1px solid #eee; padding-top: 15px; margin-bottom: 15px;}
+        
+        .carousel-container {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            background-color: #222;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 5px;
+        }
+        .carousel-slide { width: 100%; height: 100%; display: none; }
+        .carousel-slide.active { display: block; }
+        .carousel-img { 
+            width: 100%; height: 100%; object-fit: contain; 
+            cursor: zoom-in; 
+        }
+
+        .nav-btn {
+            position: absolute;
+            top: 50%; transform: translateY(-50%);
+            background: rgba(255,255,255,0.2);
+            color: white; border: none; cursor: pointer;
+            padding: 12px; border-radius: 50%; font-size: 18px;
+            transition: 0.2s; z-index: 10;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.9); color: black; }
+        .prev-btn { left: 5px; }
+        .next-btn { right: 5px; }
+        .photo-counter { font-size: 12px; color: #999; text-align: center; margin-top: 5px; }
+        .no-photo-text { display:flex; height:100%; align-items:center; justify-content:center; color:#888; font-size:13px; }
+
+        /* --- 5. 新增：跳转按钮样式 --- */
+        .jump-btn {
+            display: block;
+            width: 100%;
+            padding: 12px 0;
+            background-color: #0062cc;
+            color: white !important;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 14px;
+            margin-top: 10px;
+            transition: background 0.2s;
+            box-sizing: border-box; /* 确保内边距不撑大宽度 */
+        }
+        .jump-btn:hover {
+            background-color: #004a99;
+        }
+        .jump-btn:visited { color: white !important; }
+
+        #lightbox {
+            display: none; /* 默认隐藏 */
+            position: fixed;
+            z-index: 9999; /* 最顶层 */
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.9); /* 黑色半透明背景 */
+            align-items: center;
+            justify-content: center;
+            cursor: zoom-out;
+        }
+        #lightbox img {
+            max-width: 95%;
+            max-height: 95%;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(255,255,255,0.1);
+            animation: zoomIn 0.2s ease-out;
+        }
+        @keyframes zoomIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+        /* --- 6. 移动端适配 --- */
+        @media (max-width: 600px) {
+            .leaflet-popup-content { width: 85vw !important; min-width: 300px; }
+            .popup-header { padding: 12px; }
+            .popup-body { max-height: 70vh; padding: 12px; }
+            .my-notes-list li { margin-bottom: 6px; }
+            .carousel-container { height: 200px; }
+            .nav-btn { padding: 15px; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div id="lightbox" onclick="closeLightbox()">
+    <img id="lightbox-img" src="" alt="Full Screen Photo">
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // 1. 初始化地图
+    var map = L.map('map', {
+        tap: false // 修复部分移动端点击穿透问题
+    }).setView([37.8, 106.2], 7);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // ============================================================
+    // 2. 深度优化的地点数据 (含攻略级详细信息)
+    // ============================================================
+    var locations = [
+        {
+            name: "览山公园",
+            coords: [38.53051817738171, 106.21238831218719],
+            myNotes: ["古罗马式的建筑", "拍照出片"],
+            desc: "<strong>【最佳时刻】</strong> 推荐傍晚前往。夕阳西下时，透过仿古罗马斗兽场的拱门拍摄对面的阅海湖和贺兰山脉，是银川最经典的打卡机位。<br><strong>【Tips】</strong> 免费开放。台阶较多，建议穿舒适的鞋。",
+            tags: ["网红打卡", "日落绝绝子", "免费"],
+            link: "https://hk.trip.com/travel-guide/attraction/yinchuan/yinchuan-lanshan-park-56808448/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0101c12000f6te36qE95A_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0106r12000nm0iikzCC51_C_1200_800_Q70.jpg", 
+                "https://ak-d.tripcdn.com/images/0106o1200092lvrsd03DA_C_1200_800_Q70.jpg"
+            ] 
+        },
+        {
+            name: "贺兰山国家森林公园",
+            coords: [38.75322411387948, 105.95248700167814],
+            myNotes: ["似乎有雪", "拍星空", "有岩羊"],
+            desc: "<strong>【核心看点】</strong> 宁夏的父亲山。这里可以近距离看到蓝色的野生岩羊（不怕人）。景区内的'青阳湖'和'松涛山庄'景色不错。<br><strong>【注意】</strong> 山里温差大，即使夏天也要带外套。相比六盘山，这里更粗犷荒凉。",
+            tags: ["登山", "野生动物", "避暑"],
+            link: "https://hk.trip.com/travel-guide/attraction/helan/ning-xia-helan-mountain-national-forest-park-80231/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0106y12000lir3v400C4F_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1lo2f12000h2nj8z5E87F_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0105312000f9ag9dj2FB6_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0104l12000lir3vtm3486_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1lo5c12000h2nkedw235F_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "贺兰山岩画",
+            coords: [38.745524629182434, 106.02031187736007],
+            myNotes: ["远古人的岩画"],
+            desc: "<strong>【历史价值】</strong> 距今3000-10000年。最著名的是'太阳神'岩画，位于高处。<br><strong>【游玩建议】</strong> 景区有摆渡车。如果对人文历史不感兴趣，可能会觉得只是看几块石头，建议听讲解或租讲解器。",
+            tags: ["人文历史", "世界级遗产"],
+            link: "https://hk.trip.com/travel-guide/attraction/helan/helan-mountain-rock-painting-77476/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/1lo2z12000cw8758o07AD_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0HJ2y12000or0f3hsA904_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0HJ4512000ph8pji72E9D_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1lo3312000cw86ktj575D_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "六盘山 (红军长征景区)",
+            coords: [35.668980862413996, 106.20431099777802],
+            myNotes: ["云海"],
+            desc: "<strong>【地理特色】</strong> 这里不像西北，更像江南。气候湿润，森林覆盖率极高，被称为'高原绿岛'。<br><strong>【看点】</strong> 纪念馆、纪念亭。如果运气好，清晨能看到壮观的云海日出。适合夏季避暑。",
+            tags: ["避暑胜地", "红色旅游", "云海"],
+            link: "https://hk.trip.com/travel-guide/attraction/longde/liupanshan-changzheng-scenic-area-10795050/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0100t1200086mk6kbACFC_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0105n1200086mjtl6C03D_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0103l1200086mjsxe3E1D_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/010181200086mjwe95617_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "沙湖",
+            coords: [38.79790210185706, 106.38370520629081],
+            myNotes: ["一半湖一半沙", "需门票"],
+            desc: "<strong>【玩法】</strong> 进门先坐大船穿过芦苇荡（观鸟），到达对岸的沙漠区。可以骑骆驼、玩沙。<br><strong>【避坑】</strong> 景区物价稍贵。如果不玩水上项目，可能会觉得性价比不如沙坡头。",
+            tags: ["观鸟", "5A景区", "亲子"],
+            link: "https://hk.trip.com/travel-guide/attraction/pingluo/sand-lake-101072/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/350r14000000x37c89704_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/350g14000000x5gwpB16C_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/350814000000x4yy3BACF_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/350f14000000x4syo6D54_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "须弥山石窟 & 火石寨",
+            coords: [36.28068757177997, 105.98620744907183],
+            myNotes: ["看山和佛像", "挺一般的"],
+            desc: "<strong>【须弥山】</strong> 也是丹霞地貌上的石窟，大佛非常壮观，经历了地震依然屹立。<br><strong>【火石寨】</strong> 中国北方最典型的丹霞地貌，山体红如火焰。如果不顺路，确实不必特意跑一趟。",
+            tags: ["石窟艺术", "丹霞地貌"],
+            link: "https://hk.trip.com/travel-guide/attraction/guyuan/xumishan-grottoes-83188/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0106g1200086mk6myBBB7_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0100w1200086mk9woB952_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/010201200086mk6mtE9B7_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "水洞沟",
+            coords: [38.292907747802076, 106.51605972669465],
+            myNotes: ["看古代历史", "野人"],
+            desc: "<strong>【体验】</strong> 这是一个'交通工具大赏'景区：从毛驴车、骆驼车、甚至到拖拉机。核心看点是藏兵洞（古代地道战），非常精妙。<br><strong>【表演】</strong> 必看《北疆天歌》马战表演，很震撼。",
+            tags: ["考古", "军事地道", "趣味体验"],
+            link: "https://hk.trip.com/travel-guide/attraction/lingwu/shuidonggou-tourist-attraction-83196/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/1lo0k12000cod1h733D56_C_1200_800_Q70.png",
+                "https://ak-d.tripcdn.com/images/0106p120008ayqzgp87F2_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/100q0q000000gef4q5A12_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0104m120008ayr06cB49B_C_1200_800_Q70.jpg"
+
+            ]
+        },
+        {
+            name: "通湖草原",
+            coords: [37.53909565056128, 105.12117642183082],
+            myNotes: ["湖+草原+羊+沙漠", "刺陵取景"],
+            desc: "<strong>【位置】</strong> 其实在内蒙古境内，离中卫很近。号称'沙漠伊甸园'。<br><strong>【特色】</strong> 晚上有盛大的篝火晚会，气氛很好。这里能同时拍到草原、沙漠和湖泊同框的画面。",
+            tags: ["草原风情", "篝火晚会"],
+            link: "https://hk.trip.com/travel-guide/attraction/alxa-left-banner/tonghu-grassland-tourist-areas-93865/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0101y12000467xcau60D5_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0100512000467wf5u7640_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0107212000467w45sF624_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "镇北堡西部影城",
+            coords: [38.62038711576312, 106.07683275525224],
+            myNotes: ["大话西游取景地"],
+            desc: "<strong>【必做】</strong> 租一套紫霞仙子或至尊宝的衣服拍照！几乎所有人都在cosplay。<br><strong>【看点】</strong> 分清城、明城、老银川一条街。那个经典的城墙之吻就在这里。虽然全是土墙，但情怀满分。",
+            tags: ["电影朝圣", "拍照圣地"],
+            link: "https://hk.trip.com/travel-guide/attraction/yinchuan/china-west-film-studio-10558661/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/100b0z000000nno059EBF_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/100m0z000000nt098E46A_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0101312000iw3n2wpADF0_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1A0v16000000zex2fB9EB_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/fd/tg/g2/M05/57/90/CghzgVSzWNyAM__tACBFqPRhWHE686_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "西夏王陵",
+            coords: [38.42921989921511, 105.99779715070514],
+            myNotes: ["东方金字塔", "本地人推荐别去"],
+            desc: "<strong>【为什么去】</strong> 了解那个神秘消失的西夏王朝。<strong>【为什么不推荐】</strong> 如果不看博物馆，只看陵墓，就是几个大土堆。<br><strong>【建议】</strong> 必须先认真逛博物馆（三馆），再去看陵塔，那种苍凉感才出得来。",
+            tags: ["历史遗迹", "博物馆"],
+            link: "https://hk.trip.com/travel-guide/attraction/yinchuan/the-western-xia-mausoleum-77480/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/10080s000000hjmii1433_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/350a1900000178zoy1125_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/10020s000000hqiex1EA8_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/350r19000001763en828B_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "中卫66号公路",
+            coords: [37.40135086294266, 104.8593605401571],
+            myNotes: ["拍公路照", "感觉挺出片的（美国公路风格）"],
+            desc: "<strong>【注意】</strong> 这是一条通往古村落的真实公路，车速很快！<strong>拍照一定要注意安全</strong>，不要一直在路中间躺着。<br><strong>【最佳机位】</strong> U型谷路段，背景是黄褐色的荒山，非常美式。",
+            tags: ["公路大片", "免费"],
+            link: "https://hk.trip.com/travel-guide/attraction/zhongwei/no66-road-102734185/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0103a12000h0zoppi0BEC.jpg", 
+                "https://ak-d.tripcdn.com/images/0106o1200092lvrsd03DA_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/010011200092lvepg416F_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "乌兰湖（五湖穿越）",
+            coords: [44.62026182536693, 103.6176843060086],
+            myNotes: ["要坐越野车穿越", "地球心脏"],
+            desc: "<strong>【硬核警告】</strong> 必须包车或跟团，自驾无法进入沙漠深处。非常颠簸，容易晕车。<br><strong>【乌兰湖】</strong> 季节性湖泊，最红的时候像鲜血一样，被誉为'地球心脏'，无人机视角绝美。",
+            tags: ["越野刺激", "摄影秘境"],
+            link: "https://hk.trip.com/travel-guide/attraction/alxa-left-banner/ulaan-lake-134024856/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/1mh0b12000h8wpemc98BC_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1mh0k12000luur138A15A_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1mh0v12000jx8x1nt4429_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "腾格里沙漠",
+            coords: [37.59797027962138, 105.08200097519618],
+            myNotes: ["沙漠项目"],
+            desc: "<strong>【体验】</strong> 沙质非常细软。可以玩沙漠越野车、滑沙。<br><strong>【住宿】</strong> 如果预算充足，可以体验沙漠里的'星星酒店'，晚上看银河非常震撼。",
+            tags: ["沙漠徒步", "观星"],
+            link: "https://hk.trip.com/travel-guide/attraction/zhongwei/tengger-desert-56807516/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/01039120004fdztc683C0_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0106012000hnrn0mv3A33_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/1mh1e12000nsju9h87D6C_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "黄沙古渡原生态旅游区",
+            coords: [38.487150570498, 106.2059220305729],
+            myNotes: ["沙坡头下位替代", "便宜"],
+            desc: "<strong>【性价比之王】</strong> 这里的门票通常包含多种娱乐项目（一票通），不用进去再挨个掏钱。虽然风景略逊沙坡头，但玩得爽。",
+            tags: ["高性价比", "一票通玩"],
+            link: "https://hk.trip.com/travel-guide/attraction/yinchuan/huangshagudu-tourism-scenic-spot-10758164/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/350s180000015b38o596F_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0106h120009dom8pv236B_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0102d120008hk0fgr5576_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0103f120008hk0d7m3C4A_C_1200_800_Q70.jpg"
+            ]
+        },
+        {
+            name: "沙坡头",
+            coords: [37.519288671778966, 105.175168089269],
+            myNotes: ["各种项目", "黄河区", "沙漠区"],
+            desc: "<strong>【攻略】</strong> 分南北两区。南区看黄河，玩羊皮筏子、黄河飞索（必玩）；北区看沙漠，骑骆驼。<br><strong>【特色】</strong> 这里是王维《使至塞上》的写实地。一定要体验在黄河上坐羊皮筏子的感觉。",
+            tags: ["必去", "黄河文化", "5A景区"],
+            link: "https://hk.trip.com/travel-guide/attraction/zhongwei/shapotou-scenic-area-83186/",
+            photos: [
+                "https://ak-d.tripcdn.com/images/0105i1200087cug2hF275_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/010011200080zcbgn1BB0_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0HJ4912000o2wk7m62658_C_1200_800_Q70.jpg",
+                "https://ak-d.tripcdn.com/images/0105p1200086q6lr5BFE8_C_1200_800_Q70.jpg"
+            ]
+        }
+    ];
+
+    // ============================================================
+    // 3. 逻辑处理
+    // ============================================================
+
+    var currentSlideIndices = {};
+
+    locations.forEach(function(loc) {
+        var marker = L.marker(loc.coords).addTo(map);
+        
+        marker.bindTooltip(loc.name, {
+            permanent: true, direction: 'bottom', offset: [0, 5], className: 'map-label', interactive: true
+        });
+
+        var content = buildPopupContent(loc);
+        marker.bindPopup(content, { maxWidth: 400, autoPan: true });
+        marker.on('popupopen', function() { if (loc.photos && loc.photos.length > 0) renderCarousel(loc); });
+    });
+
+    function buildPopupContent(loc) {
+        var notesHtml = loc.myNotes && loc.myNotes.length ? 
+            `<div class="my-notes-box"><span class="section-title">📝 我的笔记</span><ul class="my-notes-list">${loc.myNotes.map(n=>`<li>${n}</li>`).join('')}</ul></div>` : '';
+
+        var tagsHtml = `<div class="tag-container">${(loc.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>`;
+
+        var safeName = loc.name.replace(/[^\w\u4e00-\u9fa5]/g, '');
+        var hasPhotos = loc.photos && loc.photos.length > 0;
+        var carouselHtml = hasPhotos ? 
+            `<div class="carousel-container">
+                <button class="nav-btn prev-btn" onclick="changeSlide('${safeName}', -1)">❮</button>
+                <div id="slides-${safeName}" style="height:100%"></div>
+                <button class="nav-btn next-btn" onclick="changeSlide('${safeName}', 1)">❯</button>
+            </div>
+            <div class="photo-counter" id="counter-${safeName}">1 / ${loc.photos.length}</div>` 
+            : `<div class="carousel-container"><div class="no-photo-text">📷 暂无照片，待你实地拍摄</div></div>`;
+
+        // 按钮区域
+        var jumpBtnHtml = loc.link ? 
+            `<a href="${loc.link}" target="_blank" class="jump-btn"><i class="fas fa-external-link-alt"></i> 查看 Trip.com 详细攻略</a>` : '';
+
+        return `
+            <div class="popup-header"><span>${loc.name}</span><i class="fas fa-map-marked-alt"></i></div>
+            <div class="popup-body">
+                ${notesHtml}
+                <div class="desc-box">${tagsHtml}${loc.desc}</div>
+                <div class="photo-section"><span class="section-title">📸 现场实拍 (点击放大)</span>${carouselHtml}</div>
+                ${jumpBtnHtml}
+            </div>
+        `;
+    }
+
+    function renderCarousel(loc) {
+        var safeName = loc.name.replace(/[^\w\u4e00-\u9fa5]/g, '');
+        var container = document.getElementById(`slides-${safeName}`);
+        if (!container) return;
+
+        if (!currentSlideIndices[safeName]) currentSlideIndices[safeName] = 0;
+        var idx = currentSlideIndices[safeName];
+
+        container.innerHTML = '';
+        loc.photos.forEach((src, index) => {
+            var div = document.createElement('div');
+            div.className = index === idx ? 'carousel-slide active' : 'carousel-slide';
+            // 这里绑定了 onclick 事件，触发 openLightbox
+            div.innerHTML = `<img src="${src}" class="carousel-img" onclick="openLightbox('${src}')">`;
+            container.appendChild(div);
+        });
+
+        var counter = document.getElementById(`counter-${safeName}`);
+        if(counter) counter.innerText = `${idx + 1} / ${loc.photos.length}`;
+    }
+
+    // --- Lightbox 功能 ---
+    window.openLightbox = function(src) {
+        var lightbox = document.getElementById('lightbox');
+        var img = document.getElementById('lightbox-img');
+        img.src = src;
+        lightbox.style.display = 'flex';
+    }
+
+    window.closeLightbox = function() {
+        document.getElementById('lightbox').style.display = 'none';
+    }
+
+    window.changeSlide = function(safeName, step) {
+        var loc = locations.find(l => l.name.replace(/[^\w\u4e00-\u9fa5]/g, '') === safeName);
+        if (!loc) return;
+        var idx = currentSlideIndices[safeName] || 0;
+        var newIndex = idx + step;
+        if (newIndex >= loc.photos.length) newIndex = 0;
+        if (newIndex < 0) newIndex = loc.photos.length - 1;
+        currentSlideIndices[safeName] = newIndex;
+        renderCarousel(loc);
+    };
+
+</script>
+</body>
+</html>
